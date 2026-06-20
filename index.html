@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>BTC Backtester</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0B0E14;color:#DDE3EA;font-family:ui-sans-serif,-apple-system,sans-serif;padding:14px 12px 60px;max-width:600px;margin:0 auto}
+h1{font-size:20px;font-weight:700;margin-bottom:2px}
+.sub{color:#4B5563;font-size:12px;margin-bottom:16px}
+.card{background:#12171F;border:1px solid #1E2530;border-radius:10px;padding:13px;margin-bottom:11px}
+.sec{font-size:10px;color:#4B5563;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.f label{display:block;font-size:10px;color:#4B5563;font-family:monospace;margin-bottom:3px}
+.f input{width:100%;background:#0B0E14;border:1px solid #1E2530;color:#DDE3EA;border-radius:6px;padding:7px 9px;font-family:monospace;font-size:13px}
+.f input:focus{outline:none;border-color:#22B8A6}
+.st{font-size:12px;margin:8px 0;padding:8px 10px;border-radius:6px;line-height:1.5}
+.ok{background:rgba(34,184,166,.1);color:#22B8A6;border:1px solid rgba(34,184,166,.2)}
+.er{background:rgba(239,93,96,.1);color:#EF5D60;border:1px solid rgba(239,93,96,.2)}
+.wn{background:rgba(242,169,59,.1);color:#F2A93B;border:1px solid rgba(242,169,59,.2)}
+.btn{font-family:inherit;font-size:13px;font-weight:600;padding:11px;border-radius:8px;border:none;background:#22B8A6;color:#04201C;cursor:pointer;width:100%;margin-top:6px}
+.btn:disabled{background:#1E2530;color:#4B5563;cursor:not-allowed}
+.btn2{background:#1E2530;color:#8A94A3}
+.tabs{display:flex;gap:5px;margin-bottom:11px;flex-wrap:wrap}
+.tab{font-family:inherit;font-size:12px;font-weight:600;padding:6px 11px;border-radius:6px;border:1px solid #1E2530;background:transparent;color:#4B5563;cursor:pointer}
+.tab.on{background:#22B8A6;color:#04201C;border-color:#22B8A6}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.sc{background:#0F1318;border:1px solid #1E2530;border-radius:8px;padding:9px 11px}
+.sl{font-size:10px;color:#4B5563;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.sv{font-family:monospace;font-size:16px;font-weight:600}
+.pos{color:#22B8A6}.neg{color:#EF5D60}
+.eq{background:#0F1318;border:1px solid #1E2530;border-radius:8px;padding:10px}
+.tw{overflow-x:auto;max-height:380px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-family:monospace;font-size:11px}
+th{text-align:left;padding:5px 6px;border-bottom:1px solid #1E2530;color:#4B5563;font-size:9px;text-transform:uppercase;position:sticky;top:0;background:#12171F;white-space:nowrap}
+td{padding:5px 6px;border-bottom:1px solid #0F1318;white-space:nowrap}
+.ab{font-size:13px;line-height:1.75;color:#C8D4DE;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<p style="font-size:10px;color:#22B8A6;letter-spacing:.15em;text-transform:uppercase;margin-bottom:3px">Live Backtest · BTCUSD 1H</p>
+<h1>ADX + Stochastic Strategy</h1>
+<p class="sub">PSar SL · Fractal TP · Dual Timeframe · AI Analysis</p>
+
+<div class="card">
+  <div class="sec">Data source</div>
+  <div class="g2">
+    <div class="f"><label>Alpaca API Key</label><input id="ak" value="PKH5YLVEU5IHFFDW73XPBOH4RU"></div>
+    <div class="f"><label>Alpaca Secret</label><input id="as" type="password" value="DXKxXDQEvNKxuQjDgRkupLFcfFNrrmjk69AZ5NCg5Yz7"></div>
+    <div class="f"><label>Start Date</label><input id="sd" type="date" value="2023-01-01"></div>
+    <div class="f"><label>Timezone Offset (UTC±)</label><input id="tz" type="number" value="1" step="1"></div>
+  </div>
+  <button class="btn" onclick="fetchAlpaca()">⬇ Fetch Live BTCUSD from Alpaca</button>
+  <button class="btn btn2" onclick="useSynth()">Use synthetic data (demo only)</button>
+  <div id="ds" class="st wn">Tap Fetch to load real Alpaca BTCUSD data.</div>
+</div>
+
+<div class="card">
+  <div class="sec">Strategy parameters</div>
+  <div class="g2">
+    <div class="f"><label>Account Balance ($)</label><input id="bal" type="number" value="100000"></div>
+    <div class="f"><label>Lot Size</label><input id="lot" type="number" value="1" step="0.01"></div>
+    <div class="f"><label>ADX Period</label><input id="ap" type="number" value="20" min="2"></div>
+    <div class="f"><label>ADX Level</label><input id="al" type="number" value="25" step="0.5"></div>
+    <div class="f"><label>PSar Step</label><input id="ps" type="number" value="0.02" step="0.001"></div>
+    <div class="f"><label>PSar Max</label><input id="pm" type="number" value="0.2" step="0.01"></div>
+    <div class="f"><label>Fractal N</label><input id="fn" type="number" value="2" min="1"></div>
+  </div>
+  <button class="btn" id="rb" onclick="runBT()" disabled>▶ Run Backtest</button>
+</div>
+
+<div class="card" id="rc" style="display:none">
+  <div class="tabs">
+    <button class="tab on" onclick="sw('sm',this)">Summary</button>
+    <button class="tab" onclick="sw('yr',this)">By Year</button>
+    <button class="tab" onclick="sw('tl',this)">Trade Log</button>
+    <button class="tab" onclick="sw('ai',this)">AI Analysis</button>
+  </div>
+  <div id="sm"></div>
+  <div id="yr" style="display:none"></div>
+  <div id="tl" style="display:none"></div>
+  <div id="ai" style="display:none">
+    <p style="color:#4B5563;font-size:12px;margin-bottom:10px">Get a professional analysis of your backtest results.</p>
+    <button class="btn" onclick="runAI()">Generate AI Analysis</button>
+    <div id="ao"></div>
+  </div>
+</div>
+
+<script>
+var BARS=[],TRADES=[],STATS={};
+
+// ── Indicators ────────────────────────────────────────────────────────────────
+function sma(a,p){
+  var o=new Array(a.length).fill(null);
+  for(var i=p-1;i<a.length;i++){
+    var s=0,ok=true;
+    for(var j=i-p+1;j<=i;j++){if(a[j]==null){ok=false;break;}s+=a[j];}
+    if(ok)o[i]=s/p;
+  }
+  return o;
+}
+
+function stoch(b,kP,sl,dP){
+  var rK=new Array(b.length).fill(null);
+  for(var i=kP-1;i<b.length;i++){
+    var hh=-1e9,ll=1e9;
+    for(var j=i-kP+1;j<=i;j++){if(b[j][2]>hh)hh=b[j][2];if(b[j][3]<ll)ll=b[j][3];}
+    rK[i]=(hh-ll)>0?100*(b[i][4]-ll)/(hh-ll):50;
+  }
+  var mK=sma(rK,sl);
+  return{mK:mK,sD:sma(mK,dP)};
+}
+
+function adxCalc(b,per){
+  var n=b.length,pD=new Array(n).fill(0),mD=new Array(n).fill(0),tr=new Array(n).fill(0);
+  for(var i=1;i<n;i++){
+    var up=b[i][2]-b[i-1][2],dn=b[i-1][3]-b[i][3];
+    pD[i]=(up>dn&&up>0)?up:0;
+    mD[i]=(dn>up&&dn>0)?dn:0;
+    tr[i]=Math.max(b[i][2]-b[i][3],Math.abs(b[i][2]-b[i-1][4]),Math.abs(b[i][3]-b[i-1][4]));
+  }
+  var sT=new Array(n).fill(null),sP=new Array(n).fill(null),sM=new Array(n).fill(null);
+  var ts=0,ps=0,ms=0;
+  for(var i=1;i<=per&&i<n;i++){ts+=tr[i];ps+=pD[i];ms+=mD[i];}
+  if(per<n){sT[per]=ts;sP[per]=ps;sM[per]=ms;}
+  for(var i=per+1;i<n;i++){
+    sT[i]=sT[i-1]-sT[i-1]/per+tr[i];
+    sP[i]=sP[i-1]-sP[i-1]/per+pD[i];
+    sM[i]=sM[i-1]-sM[i-1]/per+mD[i];
+  }
+  var dx=new Array(n).fill(null),adx=new Array(n).fill(null);
+  for(var i=per;i<n;i++){
+    if(sT[i]>0){var pi=100*sP[i]/sT[i],mi=100*sM[i]/sT[i],s=pi+mi;dx[i]=s>0?100*Math.abs(pi-mi)/s:0;}
+  }
+  var se=Math.min(per*2,n),ds=0,dc=0;
+  for(var i=per;i<se;i++){if(dx[i]!=null){ds+=dx[i];dc++;}}
+  if(dc&&se-1<n)adx[se-1]=ds/dc;
+  for(var i=se;i<n;i++){
+    if(adx[i-1]!=null&&dx[i]!=null)adx[i]=(adx[i-1]*(per-1)+dx[i])/per;
+  }
+  return adx;
+}
+
+function psarCalc(b,st,mx){
+  var n=b.length,sar=new Array(n).fill(null),bull=new Array(n).fill(null);
+  var iB=true,af=st,ep=b[0][2],pv=b[0][3];
+  sar[0]=pv;bull[0]=true;
+  for(var i=1;i<n;i++){
+    pv=pv+af*(ep-pv);
+    if(iB){
+      pv=Math.min(pv,b[Math.max(0,i-1)][3],b[Math.max(0,i-2)][3]);
+      if(b[i][3]<pv){iB=false;pv=ep;ep=b[i][3];af=st;}
+      else if(b[i][2]>ep){ep=b[i][2];af=Math.min(af+st,mx);}
+    }else{
+      pv=Math.max(pv,b[Math.max(0,i-1)][2],b[Math.max(0,i-2)][2]);
+      if(b[i][2]>pv){iB=true;pv=ep;ep=b[i][2];af=st;}
+      else if(b[i][3]<ep){ep=b[i][3];af=Math.min(af+st,mx);}
+    }
+    sar[i]=pv;bull[i]=iB;
+  }
+  return{sar:sar,bull:bull};
+}
+
+// FIX 1: Fractals — search from i-fn-1 backwards so only CONFIRMED fractals used
+// A fractal at position j is confirmed only after bar j+fn has closed
+// So at entry bar i, valid fractals are at positions j <= i-fn
+function fractals(b,fn){
+  var fH=new Array(b.length).fill(null),fL=new Array(b.length).fill(null);
+  for(var i=fn;i<b.length-fn;i++){
+    var isH=true,isL=true;
+    for(var j=i-fn;j<=i+fn;j++){
+      if(j===i)continue;
+      if(b[j][2]>=b[i][2])isH=false;
+      if(b[j][3]<=b[i][3])isL=false;
+    }
+    if(isH)fH[i]=b[i][2];
+    if(isL)fL[i]=b[i][3];
+  }
+  return{fH:fH,fL:fL};
+}
+
+// Search from i-fn-1 so only confirmed fractals are used at entry bar i
+function nFH(fH,entryBar,fn,above){
+  var start=entryBar-fn-1;
+  for(var i=start;i>=0;i--){
+    if(fH[i]!=null&&fH[i]>above)return fH[i];
+  }
+  return null;
+}
+function nFL(fL,entryBar,fn,below){
+  var start=entryBar-fn-1;
+  for(var i=start;i>=0;i--){
+    if(fL[i]!=null&&fL[i]<below)return fL[i];
+  }
+  return null;
+}
+
+// FIX 2: Build 4H bars aligned to real UTC 4H boundaries (00,04,08,12,16,20)
+function b4(b1){
+  var buckets={};
+  for(var i=0;i<b1.length;i++){
+    var ts=b1[i][0];
+    // Snap to nearest 4H boundary
+    var key=Math.floor(ts/(4*3600))*(4*3600);
+    if(!buckets[key]){buckets[key]={o:b1[i][1],h:b1[i][2],l:b1[i][3],c:b1[i][4],endIdx:i};}
+    else{
+      if(b1[i][2]>buckets[key].h)buckets[key].h=b1[i][2];
+      if(b1[i][3]<buckets[key].l)buckets[key].l=b1[i][3];
+      buckets[key].c=b1[i][4];
+      buckets[key].endIdx=i;
+    }
+  }
+  var keys=Object.keys(buckets).sort(function(a,b){return+a-+b;});
+  return keys.map(function(k){
+    var bk=buckets[k];
+    return[+k,bk.o,bk.h,bk.l,bk.c,bk.endIdx];
+  });
+}
+
+// Map each 1H bar to the index of the LAST COMPLETED 4H bar before it
+function b4map(b1,bx){
+  var m=new Array(b1.length).fill(-1);
+  var hi=-1;
+  for(var i=0;i<b1.length;i++){
+    // Advance 4H pointer while next 4H bar is fully closed before bar i
+    while(hi+1<bx.length&&bx[hi+1][5]<i)hi++;
+    m[i]=hi;
+  }
+  return m;
+}
+
+function tt(ts,off){
+  var d=new Date((ts+off*3600)*1000);
+  return d.toISOString().slice(0,16).replace('T',' ');
+}
+
+// ── Strategy ──────────────────────────────────────────────────────────────────
+function runStrategy(b1,p){
+  var bx=b4(b1),mp=b4map(b1,bx);
+  var s1=stoch(b1,2,20,20),s2=stoch(b1,5,3,3);
+  var adx=adxCalc(b1,p.ap),ps=psarCalc(b1,p.ps,p.pm);
+  var fr=fractals(b1,p.fn);
+  var s4=stoch(bx,2,20,20);
+  var ps4=psarCalc(bx,p.ps,p.pm);
+  var trades=[],bSt=0,sSt=0;
+
+  for(var i=2;i<b1.length;i++){
+    var k1=s1.mK[i],d1=s1.sD[i],k1p=s1.mK[i-1],d1p=s1.sD[i-1];
+    var av=adx[i],avp=adx[i-1];
+    if([k1,d1,k1p,d1p,av,avp].some(function(v){return v==null;}))continue;
+
+    var psB=ps.bull[i];
+    var s1Bull=k1>d1,s1Bear=k1<d1;
+    var s1BullX=k1p<=d1p&&k1>d1;   // was bearish, now bullish
+    var s1BearX=k1p>=d1p&&k1<d1;   // was bullish, now bearish
+    var adxUp=avp<=p.al&&av>p.al;   // ADX crosses UP above level → BUY trigger
+    var adxDn=avp>=p.al&&av<p.al;   // ADX crosses DOWN below level → SELL trigger
+
+    // 4H filter using correctly aligned 4H bars
+    var h4i=mp[i];
+    var htfPsarBull=h4i>=0&&ps4.bull[h4i];
+    var htfPsarBear=h4i>=0&&!ps4.bull[h4i];
+    var htfStochBull=h4i>=0&&s4.mK[h4i]!=null&&s4.sD[h4i]!=null&&s4.mK[h4i]>s4.sD[h4i];
+    var htfStochBear=h4i>=0&&s4.mK[h4i]!=null&&s4.sD[h4i]!=null&&s4.mK[h4i]<s4.sD[h4i];
+
+    var k2=s2.mK[i],d2=s2.sD[i];
+    var s2Bull=k2!=null&&d2!=null&&k2>d2;
+    var s2Bear=k2!=null&&d2!=null&&k2<d2;
+
+    // ── BUY ──
+    // Arm: PSar below price + Stoch(2,20,20) bullish cross (was bearish)
+    if(bSt===0){if(psB&&s1BullX)bSt=1;}
+    else if(bSt===1){
+      if(!psB||!s1Bull){bSt=0;}
+      // Fire: ADX crosses UP above level + Stoch(5,3,3) bearish + bearish candle
+      //       + 4H PSar below price + 4H Stoch(2,20,20) bullish
+      else if(adxUp&&s2Bear&&b1[i][4]<b1[i][1]&&htfPsarBull&&htfStochBull){
+        var ep=b1[i][4],sl=ps.sar[i];
+        var tp=nFH(fr.fH,i,p.fn,ep);   // only confirmed fractals
+        if(tp!=null&&sl!=null&&sl<ep&&tp>ep){
+          var r=sim(b1,i,ep,sl,tp,'BUY');
+          var pp=r.xp-ep,rr=Math.abs(ep-sl)>0?pp/Math.abs(ep-sl):0;
+          trades.push({dir:'BUY',t:tt(b1[i][0],p.tz),ep:ep,sl:sl,tp:tp,
+            xt:tt(b1[r.xi][0],p.tz),xp:r.xp,rsn:r.rsn,pips:pp,r:rr,pnl:pp*p.lot});
+        }
+        bSt=0;
+      }
+    }
+
+    // ── SELL ──
+    // Arm: PSar above price + Stoch(2,20,20) bearish cross (was bullish)
+    if(sSt===0){if(!psB&&s1BearX)sSt=1;}
+    else if(sSt===1){
+      if(psB||!s1Bear){sSt=0;}
+      // Fire: ADX crosses DOWN below level + Stoch(5,3,3) bullish + bullish candle
+      //       + 4H PSar above price + 4H Stoch(2,20,20) bearish
+      else if(adxDn&&s2Bull&&b1[i][4]>b1[i][1]&&htfPsarBear&&htfStochBear){
+        var ep=b1[i][4],sl=ps.sar[i];
+        var tp=nFL(fr.fL,i,p.fn,ep);   // only confirmed fractals
+        if(tp!=null&&sl!=null&&sl>ep&&tp<ep){
+          var r=sim(b1,i,ep,sl,tp,'SELL');
+          var pp=ep-r.xp,rr=Math.abs(ep-sl)>0?pp/Math.abs(ep-sl):0;
+          trades.push({dir:'SELL',t:tt(b1[i][0],p.tz),ep:ep,sl:sl,tp:tp,
+            xt:tt(b1[r.xi][0],p.tz),xp:r.xp,rsn:r.rsn,pips:pp,r:rr,pnl:pp*p.lot});
+        }
+        sSt=0;
+      }
+    }
+  }
+  return trades;
+}
+
+function sim(b,i,ep,sl,tp,dir){
+  var lim=Math.min(i+500,b.length-1);
+  for(var j=i+1;j<=lim;j++){
+    if(dir==='BUY'){
+      if(b[j][3]<=sl)return{xi:j,xp:sl,rsn:'SL'};
+      if(b[j][2]>=tp)return{xi:j,xp:tp,rsn:'TP'};
+    }else{
+      if(b[j][2]>=sl)return{xi:j,xp:sl,rsn:'SL'};
+      if(b[j][3]<=tp)return{xi:j,xp:tp,rsn:'TP'};
+    }
+  }
+  return{xi:lim,xp:b[lim][4],rsn:'TIME'};
+}
+
+function calcStats(trades,bal){
+  var wins=trades.filter(function(t){return t.pips>0;});
+  var losses=trades.filter(function(t){return t.pips<=0;});
+  var buys=trades.filter(function(t){return t.dir==='BUY';});
+  var sells=trades.filter(function(t){return t.dir==='SELL';});
+  var gw=wins.reduce(function(s,t){return s+t.pips;},0);
+  var gl=Math.abs(losses.reduce(function(s,t){return s+t.pips;},0));
+  var cum=0,peak=0,maxDD=0,cumPnl=0;
+  var eq=trades.map(function(t){
+    cum+=t.pips;cumPnl+=t.pnl;
+    if(cum>peak)peak=cum;
+    var dd=peak-cum;if(dd>maxDD)maxDD=dd;
+    return cum;
+  });
+  return{n:trades.length,wins:wins.length,
+    wr:trades.length?wins.length/trades.length*100:0,
+    pf:gl>0?gw/gl:Infinity,netPips:cum,
+    avgWin:wins.length?gw/wins.length:0,
+    avgLoss:losses.length?gl/losses.length:0,
+    maxDD:maxDD,eq:eq,buys:buys.length,sells:sells.length,
+    buyWins:buys.filter(function(t){return t.pips>0;}).length,
+    sellWins:sells.filter(function(t){return t.pips>0;}).length,
+    finalBal:bal+cumPnl,netPnl:cumPnl};
+}
+
+// ── Data loading ──────────────────────────────────────────────────────────────
+function useSynth(){
+  var b=[],p=50000,trend=0,td=0,vol=800,ts=1672531200;
+  for(var i=0;i<17520;i++){
+    if(td<=0){trend=(Math.random()-.47)*2;td=30+Math.floor(Math.random()*80);vol=400+Math.random()*1200;}
+    td--;
+    var chg=trend*(vol*.4)+(Math.random()-.5)*vol;
+    var op=p;p=Math.max(5000,p+chg);
+    var sp=Math.abs(chg)*.5+Math.random()*vol*.3;
+    b.push([ts+i*3600,op,Math.max(op,p)+sp*Math.random(),Math.min(op,p)-sp*Math.random(),p]);
+  }
+  BARS=b;
+  setDS('✓ Synthetic BTCUSD — 17,520 bars (demo only)','ok');
+  document.getElementById('rb').disabled=false;
+}
+
+async function fetchAlpaca(){
+  var key=document.getElementById('ak').value.trim();
+  var sec=document.getElementById('as').value.trim();
+  var start=document.getElementById('sd').value;
+  if(!key||!sec){setDS('Enter API key and secret first','er');return;}
+  document.getElementById('rb').disabled=true;
+  setDS('Connecting to Alpaca…','wn');
+  try{
+    var all=[],nxt=null,pg=0;
+    do{
+      pg++;
+      var url='https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=BTC%2FUSD&timeframe=1Hour&start='+start+'T00:00:00Z&limit=1000&sort=asc';
+      if(nxt)url+='&page_token='+encodeURIComponent(nxt);
+      var resp=await fetch(url,{headers:{'APCA-API-KEY-ID':key,'APCA-API-SECRET-KEY':sec}});
+      if(!resp.ok)throw new Error('HTTP '+resp.status+': '+resp.statusText);
+      var data=await resp.json();
+      var bars=(data.bars&&data.bars['BTC/USD'])||[];
+      bars.forEach(function(b){
+        var ts=Math.floor(new Date(b.t).getTime()/1000);
+        all.push([ts,b.o,b.h,b.l,b.c]);
+      });
+      nxt=data.next_page_token||null;
+      setDS('Fetching page '+pg+'… ('+all.length.toLocaleString()+' bars)','wn');
+    }while(nxt);
+    all.sort(function(a,b){return a[0]-b[0];});
+    BARS=all;
+    var d0=new Date(BARS[0][0]*1000).toISOString().slice(0,10);
+    var d1=new Date(BARS[BARS.length-1][0]*1000).toISOString().slice(0,10);
+    setDS('✓ '+BARS.length.toLocaleString()+' bars loaded from Alpaca ('+d0+' → '+d1+')','ok');
+    document.getElementById('rb').disabled=false;
+  }catch(e){
+    setDS('Alpaca failed: '+e.message,'er');
+    document.getElementById('rb').disabled=false;
+  }
+}
+
+// ── Run backtest ──────────────────────────────────────────────────────────────
+function runBT(){
+  if(!BARS.length){alert('Load data first');return;}
+  document.getElementById('rb').disabled=true;
+  document.getElementById('rb').textContent='Computing…';
+  setTimeout(function(){
+    var p={
+      ap:+document.getElementById('ap').value,
+      al:+document.getElementById('al').value,
+      ps:+document.getElementById('ps').value,
+      pm:+document.getElementById('pm').value,
+      fn:+document.getElementById('fn').value,
+      lot:+document.getElementById('lot').value,
+      tz:+document.getElementById('tz').value
+    };
+    var bal=+document.getElementById('bal').value;
+    try{
+      TRADES=runStrategy(BARS,p);
+      STATS=calcStats(TRADES,bal);
+      renderResults(STATS,TRADES,bal);
+      document.getElementById('rc').style.display='block';
+      document.getElementById('rc').scrollIntoView({behavior:'smooth'});
+    }catch(e){alert('Error: '+e.message);}
+    document.getElementById('rb').disabled=false;
+    document.getElementById('rb').textContent='▶ Run Backtest';
+  },60);
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function f(v,d){d=d==null?1:d;return(v==null||isNaN(v))?'—':v.toFixed(d);}
+
+function renderResults(s,trades,bal){
+  var sc=[
+    ['Total trades',s.n,null],
+    ['Win rate',f(s.wr,1)+'%',s.wr>=50],
+    ['Profit factor',isFinite(s.pf)?f(s.pf):'∞',s.pf>=1.5],
+    ['Net pips',f(s.netPips,0),s.netPips>=0],
+    ['Avg win',f(s.avgWin,0)+' pips',true],
+    ['Avg loss','-'+f(s.avgLoss,0)+' pips',false],
+    ['Max DD',f(s.maxDD,0)+' pips',false],
+    ['Net P&L','$'+f(s.netPnl,2),s.netPnl>=0],
+    ['Final Bal','$'+s.finalBal.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2}),s.finalBal>bal],
+    ['Buy/Sell wins',s.buyWins+'/'+s.sellWins,null]
+  ];
+  var h='<div class="sg">';
+  sc.forEach(function(x){
+    var cl=x[2]===null?'':x[2]?'pos':'neg';
+    h+='<div class="sc"><div class="sl">'+x[0]+'</div><div class="sv '+cl+'">'+x[1]+'</div></div>';
+  });
+  h+='</div>'+eqChart(s.eq);
+  document.getElementById('sm').innerHTML=h;
+
+  // Yearly
+  var by={};
+  trades.forEach(function(t){
+    var y=t.t.slice(0,4);
+    if(!by[y])by[y]={w:0,p:0,tot:0};
+    if(t.pips>0)by[y].w++;
+    by[y].p+=t.pips;by[y].tot++;
+  });
+  var yrs=Object.keys(by).sort();
+  var mx=Math.max.apply(null,yrs.map(function(y){return Math.abs(by[y].p);}));
+  var yh='';
+  yrs.forEach(function(y){
+    var d=by[y],bw=mx?Math.abs(d.p)/mx*100:0,col=d.p>=0?'#22B8A6':'#EF5D60';
+    var wr=d.tot?Math.round(d.w/d.tot*100):0;
+    yh+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:11px">'
+      +'<span style="color:#555;font-family:monospace;width:36px;flex-shrink:0">'+y+'</span>'
+      +'<div style="flex:1;background:#0A0D11;border-radius:3px;height:13px;overflow:hidden">'
+      +'<div style="width:'+bw+'%;height:100%;background:'+col+'"></div></div>'
+      +'<span style="color:'+col+';font-family:monospace;width:75px;text-align:right;flex-shrink:0">'
+      +(d.p>=0?'+':'')+Math.round(d.p)+'</span>'
+      +'<span style="color:#444;width:36px;flex-shrink:0;text-align:right">'+wr+'%</span></div>';
+  });
+  document.getElementById('yr').innerHTML=yh||'<p style="color:#4B5563">No data.</p>';
+
+  // Trade log
+  var th='<div class="tw"><table><thead><tr>'
+    +'<th>#</th><th>Dir</th><th>Entry</th><th>Price</th><th>SL</th><th>TP</th>'
+    +'<th>Exit</th><th>Exit$</th><th>Rsn</th><th>Pips</th><th>P&L</th>'
+    +'</tr></thead><tbody>';
+  trades.forEach(function(t,i){
+    var dc=t.dir==='BUY'?'pos':'neg';
+    var rc=t.rsn==='TP'?'pos':t.rsn==='SL'?'neg':'';
+    var pc=t.pips>=0?'pos':'neg';
+    th+='<tr>'
+      +'<td>'+(i+1)+'</td>'
+      +'<td class="'+dc+'">'+t.dir+'</td>'
+      +'<td>'+t.t+'</td>'
+      +'<td>'+t.ep.toLocaleString()+'</td>'
+      +'<td>'+t.sl.toFixed(0)+'</td>'
+      +'<td>'+t.tp.toFixed(0)+'</td>'
+      +'<td>'+t.xt+'</td>'
+      +'<td>'+t.xp.toFixed(0)+'</td>'
+      +'<td class="'+rc+'">'+t.rsn+'</td>'
+      +'<td class="'+pc+'">'+(t.pips>=0?'+':'')+f(t.pips,1)+'</td>'
+      +'<td class="'+pc+'">'+(t.pnl>=0?'+$':'-$')+Math.abs(t.pnl).toFixed(2)+'</td>'
+      +'</tr>';
+  });
+  th+='</tbody></table></div>';
+  document.getElementById('tl').innerHTML=th;
+  document.getElementById('ao').innerHTML='';
+}
+
+function eqChart(eq){
+  if(!eq||!eq.length)return'';
+  var W=320,H=80,p=8;
+  var mn=Math.min.apply(null,[0].concat(eq)),mx=Math.max.apply(null,[0].concat(eq));
+  if(mn===mx){mn-=1;mx+=1;}
+  var rng=mx-mn;
+  var px=function(i){return p+(i/(eq.length-1||1))*(W-p*2);};
+  var py=function(v){return H-p-((v-mn)/rng)*(H-p*2);};
+  var segs='';
+  for(var i=1;i<eq.length;i++){
+    segs+='<line x1="'+px(i-1)+'" y1="'+py(eq[i-1])+'" x2="'+px(i)+'" y2="'+py(eq[i])+'" stroke="'
+      +(eq[i]>=0?'#22B8A6':'#EF5D60')+'" stroke-width="1.5"/>';
+  }
+  return'<div class="eq"><div style="font-size:10px;color:#4B5563;margin-bottom:6px">Equity curve (pips)</div>'
+    +'<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block">'
+    +'<line x1="'+p+'" y1="'+py(0)+'" x2="'+(W-p)+'" y2="'+py(0)+'" stroke="rgba(255,255,255,.07)" stroke-width="1"/>'
+    +segs+'</svg></div>';
+}
+
+function sw(id,btn){
+  ['sm','yr','tl','ai'].forEach(function(x){document.getElementById(x).style.display='none';});
+  document.getElementById(id).style.display='block';
+  document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on');});
+  btn.classList.add('on');
+}
+
+function setDS(msg,type){
+  var el=document.getElementById('ds');
+  el.textContent=msg;el.className='st '+type;
+}
+
+// ── AI Analysis ───────────────────────────────────────────────────────────────
+async function runAI(){
+  if(!TRADES.length){alert('Run backtest first');return;}
+  var s=STATS,ao=document.getElementById('ao');
+  ao.innerHTML='<div style="text-align:center;padding:20px;color:#22B8A6">Analysing '+s.n+' trades…</div>';
+  var prompt='You are a professional quantitative trading analyst.\n\n'
+    +'STRATEGY: ADX(20) + Stochastic Dual TF — BTCUSD 1H\n'
+    +'BUY: PSar below + Stoch(2,20,20) bullish cross → ADX crosses UP above 25 + Stoch(5,3,3) bearish + bearish candle. TP=nearest confirmed fractal high. SL=PSar below entry. 4H: PSar below + Stoch bullish.\n'
+    +'SELL: PSar above + Stoch(2,20,20) bearish cross → ADX crosses DOWN below 25 + Stoch(5,3,3) bullish + bullish candle. TP=nearest confirmed fractal low. SL=PSar above entry. 4H: PSar above + Stoch bearish.\n\n'
+    +'RESULTS:\n'
+    +'Trades: '+s.n+' ('+s.buys+' buys / '+s.sells+' sells)\n'
+    +'Win rate: '+f(s.wr,1)+'%\n'
+    +'Profit factor: '+(isFinite(s.pf)?f(s.pf):'∞')+'\n'
+    +'Net pips: '+f(s.netPips,0)+'\n'
+    +'Avg win: '+f(s.avgWin,0)+' pips | Avg loss: '+f(s.avgLoss,0)+' pips\n'
+    +'Max drawdown: '+f(s.maxDD,0)+' pips\n'
+    +'Net P&L: $'+f(s.netPnl,2)+' | Final: $'+f(s.finalBal,2)+'\n\n'
+    +'First 5 trades:\n'
+    +TRADES.slice(0,5).map(function(t,i){
+      return(i+1)+'. '+t.dir+' '+t.t+' @ '+t.ep.toFixed(0)
+        +' SL='+t.sl.toFixed(0)+' TP='+t.tp.toFixed(0)
+        +' → '+t.rsn+' '+(t.pips>=0?'+':'')+t.pips.toFixed(0)+' pips';
+    }).join('\n')
+    +'\n\nWrite analysis: 1.VERDICT 2.STRENGTHS 3.WEAKNESSES 4.RISK/REWARD 5.MARKET CONDITIONS 6.IMPROVEMENTS 7.RISK MANAGEMENT 8.RECOMMENDATION\nBe specific, reference actual numbers.';
+  try{
+    var resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,
+        messages:[{role:'user',content:prompt}]})
+    });
+    var data=await resp.json();
+    if(data.content){
+      ao.innerHTML='<div class="ab">'+data.content
+        .filter(function(b){return b.type==='text';})
+        .map(function(b){return b.text;})
+        .join('')
+        .replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+    }else{
+      ao.innerHTML='<p style="color:#EF5D60">Error: '+(data.error&&data.error.message||JSON.stringify(data))+'</p>';
+    }
+  }catch(e){
+    ao.innerHTML='<p style="color:#EF5D60">Error: '+e.message+'</p>';
+  }
+}
+</script>
+</body>
+</html>
